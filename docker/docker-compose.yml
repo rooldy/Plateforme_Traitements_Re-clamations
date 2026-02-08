@@ -1,0 +1,491 @@
+---
+# ============================================================================
+# DOCKER COMPOSE - PROJET RÉCLAMATIONS CLIENTS
+# ============================================================================
+# Configuration adaptée pour le projet de traitement de réclamations
+# Tous les containers ont le préfixe "reclamations-" pour isolation
+# ============================================================================
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - ${ENV_FILE_PATH:-.env}
+  environment:
+    &airflow-common-env
+    # ===== CONFIGURATION AIRFLOW CORE =====
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CELERY__WORKER_CONCURRENCY: 4
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    
+    # ===== CONNEXIONS BASE DE DONNÉES =====
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@reclamations-postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@reclamations-postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@reclamations-redis:6379/0
+    
+    # ===== SÉCURITÉ =====
+    AIRFLOW__CORE__FERNET_KEY: ''
+    
+    # ===== CONFIGURATION DAG (RÉSOUT LE PROBLÈME @daily) =====
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'      # ⬅️ DAGs actifs automatiquement
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'                     # ⬅️ Pas d'exemples Airflow
+    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: 'false'          # ⬅️ Pas de backfill automatique
+    
+    # ===== API ET EXÉCUTION =====
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://reclamations-airflow-api:8080/execution/'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    
+    # ===== TIMEOUTS POUR PYSPARK (IMPORTANT) =====
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 120                # 2 minutes (jobs PySpark)
+    AIRFLOW__API__API_REQUEST_TIMEOUT: 300                    # 5 minutes
+    AIRFLOW__CELERY__OPERATION_TIMEOUT: 300                   # 5 minutes
+    AIRFLOW__CELERY__TASK_TRACK_STARTED: 'true'              # Track task start
+    AIRFLOW__SDK__HEARTBEAT_INTERVAL: 10                      # Heartbeat 10s
+    AIRFLOW__SDK__REQUEST_TIMEOUT: 300                        # Timeout SDK
+    
+    # ===== CONNEXION POSTGRESQL MÉTIER (reclamations_db) =====
+    POSTGRES_HOST: reclamations-postgres
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: reclamations_db
+    POSTGRES_USER: airflow
+    POSTGRES_PASSWORD: airflow
+    
+    # ===== CONFIGURATION PYTHON =====
+    _PIP_ADDITIONAL_REQUIREMENTS: ""
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    PYTHONPATH: /opt/airflow/spark:/opt/airflow/dags
+  
+  # ===== LIMITES RESSOURCES =====
+  deploy:
+    resources:
+      limits:
+        memory: 2G
+      reservations:
+        memory: 512M
+  
+  # ===== VOLUMES PARTAGÉS =====
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/../spark:/opt/airflow/spark
+    - ${AIRFLOW_PROJ_DIR:-.}/../data:/opt/airflow/data
+    - ${AIRFLOW_PROJ_DIR:-.}/../data:/app/data
+
+  user: "${AIRFLOW_UID:-50000}:0"
+  
+  depends_on:
+    &airflow-common-depends-on
+    reclamations-redis:
+      condition: service_healthy
+    reclamations-postgres:
+      condition: service_healthy
+
+# ============================================================================
+# SERVICES
+# ============================================================================
+
+services:
+  
+  # ==========================================================================
+  # POSTGRESQL - Base de données Airflow + Métier
+  # ==========================================================================
+  reclamations-postgres:
+    image: postgres:16
+    container_name: reclamations-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - reclamations-postgres-data:/var/lib/postgresql/data
+      
+      # ⬇️ SCRIPTS D'INITIALISATION (crée reclamations_db automatiquement)
+      - ${AIRFLOW_PROJ_DIR:-.}/../sql/init-multiple-databases.sh:/docker-entrypoint-initdb.d/00-init-multiple-databases.sh
+      - ${AIRFLOW_PROJ_DIR:-.}/../sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ${AIRFLOW_PROJ_DIR:-.}/../sql/indexes.sql:/docker-entrypoint-initdb.d/02-indexes.sql
+    
+    ports:
+      - "5432:5432"
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    
+    restart: always
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # REDIS - Message Broker pour Celery
+  # ==========================================================================
+  reclamations-redis:
+    image: redis:7.2-bookworm
+    container_name: reclamations-redis
+    expose:
+      - 6379
+    
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    
+    restart: always
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # SPARK MASTER - Coordonnateur cluster Spark
+  # ==========================================================================
+  reclamations-spark-master:
+    image: apache/spark:3.5.1
+    container_name: reclamations-spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    
+    ports:
+      - "7077:7077"    # Spark Master
+      - "8081:8080"    # Spark UI
+    
+    environment:
+      - SPARK_MASTER_HOST=reclamations-spark-master
+      - DATA_BASE_PATH=/app/data
+    
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/../spark:/app/spark
+      - ${AIRFLOW_PROJ_DIR:-.}/../data:/app/data
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/../spark:/opt/airflow/spark
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # SPARK WORKER - Exécuteur de tâches Spark
+  # ==========================================================================
+  reclamations-spark-worker:
+    image: apache/spark:3.5.1
+    container_name: reclamations-spark-worker
+    depends_on:
+      - reclamations-spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://reclamations-spark-master:7077
+    
+    environment:
+      - SPARK_WORKER_MEMORY=3G
+      - SPARK_WORKER_CORES=2
+      - DATA_BASE_PATH=/app/data
+    
+    deploy:
+      resources:
+        limits:
+          memory: 3.5G
+        reservations:
+          memory: 1.5G
+    
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/../spark:/app/spark
+      - ${AIRFLOW_PROJ_DIR:-.}/../data:/app/data
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/../spark:/opt/airflow/spark
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW API SERVER - Point d'entrée API et UI
+  # ==========================================================================
+  reclamations-airflow-api:
+    <<: *airflow-common
+    container_name: reclamations-airflow-api
+    command: api-server
+    
+    ports:
+      - "8080:8080"
+    
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    
+    restart: always
+    
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW SCHEDULER - Planificateur de tâches
+  # ==========================================================================
+  reclamations-airflow-scheduler:
+    <<: *airflow-common
+    container_name: reclamations-airflow-scheduler
+    command: scheduler
+    
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    
+    restart: always
+    
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW DAG PROCESSOR - Processeur de DAGs
+  # ==========================================================================
+  reclamations-airflow-dag-processor:
+    <<: *airflow-common
+    container_name: reclamations-airflow-dag-processor
+    command: dag-processor
+    
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    
+    restart: always
+    
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW WORKER - Exécuteur Celery
+  # ==========================================================================
+  reclamations-airflow-worker:
+    <<: *airflow-common
+    container_name: reclamations-airflow-worker
+    command: celery worker
+    
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 3G
+    
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    
+    restart: always
+    
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-api:
+        condition: service_healthy
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW TRIGGERER - Gestion des déclencheurs asynchrones
+  # ==========================================================================
+  reclamations-airflow-triggerer:
+    <<: *airflow-common
+    container_name: reclamations-airflow-triggerer
+    command: triggerer
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    
+    restart: always
+    
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW INIT - Initialisation base de données et utilisateur
+  # ==========================================================================
+  reclamations-airflow-init:
+    <<: *airflow-common
+    container_name: reclamations-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        if [[ -z "${AIRFLOW_UID}" ]]; then
+          echo
+          echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
+          export AIRFLOW_UID=$$(id -u)
+        fi
+        
+        one_meg=1048576
+        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
+        cpus_available=$$(grep -cE 'cpu[0-9]+' /proc/stat)
+        disk_available=$$(df / | tail -1 | awk '{print $$4}')
+        warning_resources="false"
+        
+        if (( mem_available < 4000 )) ; then
+          echo -e "\033[1;33mWARNING: Not enough memory. At least 4GB required.\e[0m"
+          warning_resources="true"
+        fi
+        
+        if (( cpus_available < 2 )); then
+          echo -e "\033[1;33mWARNING: At least 2 CPUs recommended.\e[0m"
+          warning_resources="true"
+        fi
+        
+        echo "Creating missing opt dirs if missing:"
+        mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
+        
+        echo "Airflow version:"
+        /entrypoint airflow version
+        
+        echo "Running airflow config list to create default config file if missing."
+        /entrypoint airflow config list >/dev/null
+        
+        echo "Change ownership of files to ${AIRFLOW_UID}:0"
+        chown -R "${AIRFLOW_UID}:0" /opt/airflow/
+        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
+    
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    
+    user: "0:0"
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # AIRFLOW CLI - Interface ligne de commande (debug)
+  # ==========================================================================
+  reclamations-airflow-cli:
+    <<: *airflow-common
+    container_name: reclamations-airflow-cli
+    profiles:
+      - debug
+    environment:
+      <<: *airflow-common-env
+      CONNECTION_CHECK_MAX_COUNT: "0"
+    command:
+      - bash
+      - -c
+      - airflow
+    depends_on:
+      <<: *airflow-common-depends-on
+    
+    networks:
+      - reclamations-network
+
+  # ==========================================================================
+  # FLOWER - Monitoring Celery (optionnel)
+  # ==========================================================================
+  reclamations-flower:
+    <<: *airflow-common
+    container_name: reclamations-flower
+    command: celery flower
+    profiles:
+      - flower
+    ports:
+      - "5555:5555"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      reclamations-airflow-init:
+        condition: service_completed_successfully
+    
+    networks:
+      - reclamations-network
+
+# ============================================================================
+# VOLUMES PERSISTANTS
+# ============================================================================
+volumes:
+  reclamations-postgres-data:
+    name: reclamations_postgres_data
+
+# ============================================================================
+# RÉSEAUX
+# ============================================================================
+networks:
+  reclamations-network:
+    name: reclamations_network
+    driver: bridge
