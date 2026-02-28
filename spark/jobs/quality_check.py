@@ -53,9 +53,13 @@ class QualityCheckJob:
         # Compter les nulls par colonne
         null_counts = {}
         for column in df.columns:
-            null_count = df.filter(
-                col(column).isNull() | isnan(column) if column != "string" else col(column).isNull()
-            ).count()
+            # isnan() uniquement sur colonnes numériques (pas DATE, STRING)
+            numeric_types = ['double', 'float', 'int', 'long', 'short', 'decimal']
+            col_type = dict(df.dtypes).get(column, '')
+            if any(t in col_type for t in numeric_types):
+                null_count = df.filter(col(column).isNull() | isnan(col(column))).count()
+            else:
+                null_count = df.filter(col(column).isNull()).count()
             null_counts[column] = null_count
             
             if null_count > 0:

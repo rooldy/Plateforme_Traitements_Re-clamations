@@ -175,7 +175,7 @@ class TransformationJob:
             incidents_df.alias("i"),
             (col("r.region") == col("i.region")) &
             (col("r.date_creation") >= col("i.date_incident")) &
-            (col("r.date_creation") <= expr("date_add(i.date_resolution, 3)")),
+            (col("r.date_creation") <= expr("date_add(i.date_incident, 3)")),
             "left"
         )
         
@@ -337,13 +337,14 @@ class TransformationJob:
             
             # 7. Sauvegarde en Parquet partitionné
             print("\n💾 Sauvegarde des données transformées...")
+            from pyspark.sql.functions import year, month
+            reclamations_df = reclamations_df \
+                .withColumn("annee", year(col("date_creation"))) \
+                .withColumn("mois", month(col("date_creation")))
             reclamations_df.write \
-                .partitionBy("region", expr("year(date_creation)"), expr("month(date_creation)")) \
+                .partitionBy("region", "annee", "mois") \
                 .mode("overwrite") \
                 .parquet(f"{output_path}/reclamations")
-            
-            print(f"  ✅ Données sauvegardées dans {output_path}/reclamations")
-            
             # Afficher un échantillon
             print("\n📊 Échantillon des données transformées:")
             reclamations_df.select(

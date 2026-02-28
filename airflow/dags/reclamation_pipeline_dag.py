@@ -8,11 +8,9 @@ Date: Février 2025
 
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.bash import BashOperator
-from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.python import PythonOperator
 
-# Configuration par défaut du DAG
 default_args = {
     'owner': 'data-engineering',
     'depends_on_past': False,
@@ -25,15 +23,14 @@ default_args = {
     'execution_timeout': timedelta(hours=2),
 }
 
-# Définition du DAG
 dag = DAG(
     'reclamation_pipeline',
     default_args=default_args,
     description='Pipeline complet de traitement des réclamations clients',
-    schedule_interval='@daily',  # Exécution quotidienne
+    schedule='@daily',
     start_date=datetime(2025, 2, 1),
-    catchup=False,  # Ne pas rattraper les exécutions passées
-    is_paused_upon_creation=False,  # DAG actif dès la création
+    catchup=False,
+    is_paused_upon_creation=False,
     max_active_runs=1,
     tags=['reclamations', 'pyspark', 'production'],
 )
@@ -50,24 +47,9 @@ task_ingestion = BashOperator(
     dag=dag,
     doc_md="""
     ### Ingestion des données sources
-    
-    **Objectif :** Charger les fichiers CSV bruts et les convertir en Parquet.
-    
-    **Entrées :**
-    - `data/raw/reclamations.csv`
-    - `data/raw/incidents.csv`
-    - `data/raw/clients.csv`
-    
-    **Sorties :**
-    - `data/raw_parquet/reclamations/`
-    - `data/raw_parquet/incidents/`
-    - `data/raw_parquet/clients/`
-    
-    **Vérifications :**
-    - Schéma strict validé
-    - Types de données correctsContrôles :
-    - Détection anomalies structurelles
-    - Logging dans PostgreSQL
+    Charge les fichiers CSV bruts et les convertit en Parquet.
+    - Entrées : `data/raw/reclamations.csv`, `incidents.csv`, `clients.csv`
+    - Sorties : `data/raw_parquet/reclamations/`, `incidents/`, `clients/`
     """,
 )
 
@@ -83,21 +65,7 @@ task_quality_check = BashOperator(
     dag=dag,
     doc_md="""
     ### Contrôles qualité des données
-    
-    **Objectif :** Vérifier la qualité des données ingérées.
-    
-    **Contrôles effectués :**
-    - Complétude (valeurs nulles)
-    - Unicité (doublons)
-    - Validité (référentiel)
-    - Cohérence (dates, formats Linky)
-    
-    **Seuil de qualité :** 90%
-    
-    **Actions si échec :**
-    - Arrêt du pipeline
-    - Alerte équipe data
-    - Métriques sauvegardées dans `data_quality_metrics`
+    Vérifie complétude, unicité, validité et cohérence. Seuil : 90%.
     """,
 )
 
@@ -113,155 +81,140 @@ task_transformation = BashOperator(
     dag=dag,
     doc_md="""
     ### Transformations et enrichissements
-    
-    **Objectif :** Enrichir les données et calculer les métriques métier.
-    
-    **Transformations appliquées :**
     1. Calcul durées de traitement
-    2. Calcul scores de priorité
+    2. Scores de priorité
     3. Détection réclamations récurrentes
-    4. Corrélation avec incidents réseau
-    5. Détection d'anomalies statistiques
-    
-    **Sorties :**
-    - `data/processed/reclamations/` (partitionné par région/année/mois)
-    - Anomalies dans `anomalies_detected`
+    4. Corrélation incidents réseau
+    5. Détection anomalies statistiques
+    - Sortie : `data/processed/reclamations/` (partitionné région/année/mois)
     """,
 )
 
 # ==============================================================================
-# TÂCHE 4 : Export PostgreSQL
+# TÂCHE 4 : Export PostgreSQL (Spark CSV+COPY, même pattern que medallion)
 # ==============================================================================
 task_export_postgres = BashOperator(
     task_id='export_postgres',
     bash_command='''
-        cd /opt/airflow/spark/jobs && \
-        python3 export_postgres.py
+        python3 /opt/airflow/spark/jobs/export_reclamation_processed_csv.py
     ''',
     dag=dag,
     doc_md="""
     ### Export vers PostgreSQL
-    
-    **Objectif :** Exporter les données finales vers la base de données.
-    
-    **Tables mises à jour :**
-    - `reclamations_cleaned` : Réclamations enrichies
-    - `kpis_daily` : KPIs quotidiens par région/type
-    - `clients` : Statistiques clients
-    
-    **Post-traitement :**
-    - Rafraîchissement des vues matérialisées
-    - Logging de l'exécution
+    Pattern Spark → CSV → COPY (même que medallion_pipeline_daily).
+    Lit depuis `data/processed/reclamations` (sortie de transformation.py).
+    - `reclamations.reclamations_cleaned` : réclamations enrichies
     """,
 )
 
 # ==============================================================================
-# TÂCHE 5 : Notification de succès (optionnel)
+# TÂCHE 5 : Notification de succès (même pattern que medallion_pipeline_daily)
 # ==============================================================================
 def send_success_notification(**context):
-    """
-    Envoie une notification de succès.
-    Peut être étendu avec Slack, email, etc.
-    """
-    execution_date = context['execution_date']
-    print(f"✅ Pipeline exécuté avec succès pour {execution_date}")
-    print(f"📊 Réclamations traitées et disponibles dans PostgreSQL")
-    # TODO: Ajouter envoi Slack/email si besoin
+    """Log succès dans PostgreSQL — même pattern que medallion_pipeline_daily."""
+    from datetime import datetime, timezone
+    import psycopg2
+
+    dag_run = context.get('dag_run')
+
+    try:
+        conn = psycopg2.connect(
+            host="reclamations-postgres",
+            database="reclamations_db",
+            user="airflow",
+            password="airflow_local_dev"
+        )
+        cur = conn.cursor()
+
+        # Stats réelles depuis PostgreSQL
+        cur.execute("SELECT COUNT(*) FROM reclamations.reclamations_processed")
+        nb_reclamations = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM reclamations.kpis_daily")
+        nb_kpis = cur.fetchone()[0]
+
+        # ✅ Fix timezone : datetime.now(UTC) pour compatibilité Airflow 3.x
+        now = datetime.now(timezone.utc)
+        start = dag_run.start_date
+        duration = (now - start).total_seconds() if start else 0
+
+        cur.execute("""
+            INSERT INTO reclamations.pipeline_runs
+            (dag_id, run_id, status, start_date, end_date, duration_seconds, message)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            dag_run.dag_id,
+            dag_run.run_id,
+            'SUCCESS',
+            start,
+            now,
+            duration,
+            f"✅ Pipeline terminé : {nb_reclamations:,} réclamations + {nb_kpis:,} KPIs"
+        ))
+
+        conn.commit()
+
+        print(f"""
+╔══════════════════════════════════════════╗
+║   ✅ PIPELINE TERMINÉ AVEC SUCCÈS       ║
+╚══════════════════════════════════════════╝
+
+📊 Résultat :
+   • Réclamations : {nb_reclamations:,}
+   • KPIs         : {nb_kpis:,}
+   • Durée        : {duration:.0f}s
+
+✅ Log sauvegardé dans reclamations.pipeline_runs
+        """)
+
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        print(f"⚠️ Erreur notification : {e}")
+        raise
+
 
 task_notification = PythonOperator(
     task_id='send_notification',
     python_callable=send_success_notification,
-    provide_context=True,
     dag=dag,
 )
 
 # ==============================================================================
-# DÉFINITION DES DÉPENDANCES
+# DÉPENDANCES
 # ==============================================================================
-
-# Pipeline séquentiel :
-# Ingestion → Quality Check → Transformation → Export → Notification
-
 task_ingestion >> task_quality_check >> task_transformation >> task_export_postgres >> task_notification
 
 # ==============================================================================
 # DOCUMENTATION DU DAG
 # ==============================================================================
-
 dag.doc_md = """
 # Pipeline de Traitement des Réclamations Clients
 
 ## 📋 Vue d'ensemble
-
-Ce DAG orchestre le traitement quotidien des réclamations clients pour un opérateur 
+DAG quotidien orchestrant le traitement des réclamations clients pour un opérateur
 d'infrastructure énergétique.
 
 ## 🔄 Flux de données
-
 ```
 CSV Sources → Ingestion → Quality Check → Transformations → PostgreSQL
-                  ↓            ↓              ↓                ↓
-              Parquet      Métriques      Parquet         Tables finales
-                         qualité         enrichi              + KPIs
+                  ↓            ↓               ↓                ↓
+              Parquet      Métriques       Parquet         reclamations_cleaned
+                           qualité         enrichi              + pipeline_runs
+                                       (processed/)
 ```
 
 ## ⏱️ Scheduling
-
 - **Fréquence** : Quotidienne (`@daily`)
-- **Heure d'exécution** : 02:00 AM (UTC)
 - **Durée estimée** : 15-30 minutes
 - **Retry** : 3 tentatives avec 5 min d'intervalle
 
-## 📊 Métriques produites
+## 📊 Tables PostgreSQL mises à jour
+- `reclamations.reclamations_cleaned` : réclamations enrichies
+- `reclamations.pipeline_runs` : logs d'exécution
 
-1. **Réclamations enrichies** : Toutes les réclamations avec calculs métier
-2. **KPIs quotidiens** : Agrégations par région/type
-3. **Anomalies** : Détection automatique de pics inhabituels
-4. **Qualité** : Métriques de qualité des données
-
-## 🚨 Alertes
-
-- Échec quality check → Arrêt du pipeline
-- Échec transformation → Retry automatique
-- Succès → Notification (optionnel)
-
-## 👥 Contacts
-
-- **Owner** : Data Engineering Team
-- **Email** : admin@example.com
-- **Slack** : #data-engineering
-
-## 📚 Documentation
-
-Pour plus d'informations, consulter :
-- [README du projet](../README.md)
-- [Architecture technique](../docs/architecture.md)
-- [Guide des transformations](../docs/transformations.md)
-"""
-
-# ==============================================================================
-# NOTES TECHNIQUES
-# ==============================================================================
-
-"""
-### Optimisations appliquées
-
-1. **Partitionnement Parquet** : Par région/année/mois pour requêtes rapides
-2. **Cache Spark** : Utilisation intelligente du cache sur données réutilisées
-3. **Broadcast join** : Pour corrélation avec incidents (petite table)
-4. **Vues matérialisées** : Rafraîchies automatiquement
-
-### Bonnes pratiques
-
-- ✅ Logs centralisés dans PostgreSQL
-- ✅ Métriques de qualité sauvegardées
-- ✅ Retry automatique sur erreurs temporaires
-- ✅ Idempotence des jobs (re-exécution safe)
-
-### Évolutions futures
-
-- [ ] Ajout alerting Slack/email
-- [ ] Dashboard Streamlit des KPIs
-- [ ] ML pour prédiction délai traitement
-- [ ] Streaming Kafka pour réclamations urgentes
+## 📝 Note architecture
+Ce DAG traite les réclamations brutes → enrichies.
+Les KPIs sont calculés et exportés par `medallion_pipeline_daily`.
 """

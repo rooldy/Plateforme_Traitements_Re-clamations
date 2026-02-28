@@ -32,7 +32,7 @@ def main():
     jdbc_url = "jdbc:postgresql://reclamations-postgres:5432/reclamations_db"
     props = {
         "user": "airflow",
-        "password": "airflow_local_dev",
+        "password": "airflow",
         "driver": "org.postgresql.Driver"
     }
     
@@ -49,9 +49,9 @@ def main():
     # Export KPIs (avec renommage colonnes)
     print("\n📤 Export kpis_daily...")
     df_kpis_final = df_kpis_dedup \
-        .withColumnRenamed("nombre_ouvertes", "nombre_reclamations_ouvertes") \
-        .withColumnRenamed("nombre_cloturees", "nombre_reclamations_cloturees") \
-        .withColumnRenamed("nombre_reclamations_total", "nombre_reclamations_en_cours") \
+        .withColumnRenamed("nombre_reclamations_total", "nombre_reclamations_ouvertes") \
+        .withColumnRenamed("nombre_ouvertes", "nombre_reclamations_cloturees") \
+        .withColumnRenamed("nombre_cloturees", "nombre_reclamations_en_cours") \
         .withColumnRenamed("duree_moyenne_traitement", "duree_moyenne_traitement_heures") \
         .withColumnRenamed("duree_mediane_traitement", "duree_mediane_traitement_heures") \
         .withColumnRenamed("delai_moyen_premiere_reponse", "delai_moyen_premiere_reponse_heures") \

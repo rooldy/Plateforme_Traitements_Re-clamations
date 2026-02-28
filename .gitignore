@@ -1,0 +1,54 @@
+# Data files
+data/
+airflow/data/
+*.csv
+*.parquet
+
+# Logs
+logs/
+airflow/logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environnements virtuels
+venv/
+.env
+*.env
+
+# Docker volumes
+airflow/plugins/
+airflow/packages/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Exports temporaires
+airflow/data/exports/
+airflow/data/raw_parquet/
+airflow/data/processed/
+airflow/data/kpis/
+
+# Backup files
+*.backup
+*.bak
+
+# Airflow DB locale
+airflow.db
+data/raw/*.csv
+airflow/jars/
+airflow/docker_files/
+data/raw/*.csv
+airflow/jars/
+airflow/docker_files/

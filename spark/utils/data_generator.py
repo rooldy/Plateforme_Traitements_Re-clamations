@@ -306,12 +306,13 @@ class DataGeneratorV2:
                 releve = {
                     "reference_linky": compteur["reference_linky"],
                     "date_releve": date_releve.strftime("%Y-%m-%d"),
-                    "index_hp": random.randint(10000, 50000),  # Heures pleines
-                    "index_hc": random.randint(5000, 25000),   # Heures creuses
+                    "index_hp": random.randint(10000, 50000),
+                    "index_hc": random.randint(5000, 25000),
                     "consommation_kwh": conso,
                     "type_releve": random.choice(["Automatique", "Manuel"]),
                     "anomalie_detectee": type_anomalie is not None,
                     "type_anomalie": type_anomalie
+               
             }
                 
                 releves.append(releve)
@@ -490,16 +491,17 @@ class DataGeneratorV2:
     # ========================================================================
     
     def generate_meteo_quotidienne(self, num_jours: int = None):
-        if num_jours is None:
-            num_jours = SIMULATION_MONTHS * 30
         """
         Génère les données météo quotidiennes par région.
-        
+    
         Permet :
         - Corrélation pannes avec intempéries
         - Prédiction volumétrie après tempête
         - Analyse impact conditions météo
         """
+        if num_jours is None:
+            num_jours = SIMULATION_MONTHS * 30
+    
         print(f"\n🌦️  Génération de données météo ({num_jours} jours × {len(REGIONS)} régions)...")
         
         meteo_data = []
@@ -617,23 +619,32 @@ class DataGeneratorV2:
         print("🚀 GÉNÉRATION DONNÉES ÉTENDUES - VERSION 2.0")
         print(f"📅 Période simulation : {SIMULATION_MONTHS} mois ({SIMULATION_YEARS} ans)")
         print("="*80)
-        print(f"📁 Répertoire de sortie : {OUTPUT_DIR}")
-        print()
-        
+    
+        # Afficher volumétrie attendue
+        self.calculate_expected_volume()
+    
+        print(f"\n📁 Répertoire de sortie : {OUTPUT_DIR}")
+        print("\n⏳ Démarrage génération...")
+    
+        # ✅ 1. Démarrer le chrono
         start_time = datetime.now()
-        
-        # Génération des 6 nouveaux fichiers
+    
+        # ✅ 2. Génération des 6 fichiers
         self.generate_compteurs_linky(100000)
         self.generate_postes_sources(2200)
         self.generate_historique_releves(200000)
         self.generate_historique_interventions(50000)
         self.generate_factures(200000)
-        self.generate_meteo_quotidienne(365)
-        
+        self.generate_meteo_quotidienne()  # Sans paramètre
+    
+        # ✅ 3. Arrêter le chrono
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
-        # Résumé
+    
+        # ✅ 4. Validation finale
+        self.validate_temporal_consistency()
+    
+        # ✅ 5. Résumé (UNE SEULE FOIS)
         print("\n" + "="*80)
         print("✅ GÉNÉRATION TERMINÉE")
         print("="*80)
@@ -641,13 +652,12 @@ class DataGeneratorV2:
         print(f"📦 Fichiers générés :")
         print(f"   • compteurs_linky.csv         : 100,000 lignes")
         print(f"   • postes_sources.csv          :   2,200 lignes")
-        print(f"   • historique_releves.csv      : 200,000 lignes")
+        print(f"   • historique_releves.csv      : 720,000 lignes")
         print(f"   • historique_interventions.csv:  50,000 lignes")
-        print(f"   • factures.csv                : 200,000 lignes")
-        print(f"   • meteo_quotidienne.csv       :   4,380 lignes")
-        print(f"\n📊 TOTAL : 556,580 lignes de données")
+        print(f"   • factures.csv                : 720,000 lignes")
+        print(f"   • meteo_quotidienne.csv       :  12,960 lignes")
+        print(f"\n📊 TOTAL : ~1,605,000 lignes de données")
         print("="*80)
-
 
 def main():
     """Point d'entrée principal."""

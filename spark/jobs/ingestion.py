@@ -218,7 +218,7 @@ class IngestionJob:
             
             # Affichage d'un échantillon
             print("\n📊 Échantillon de données :")
-            df.select("client_id", "nom", "prenom", "email", "region") \
+            df.select("client_id", "nom", "type_client", "region") \
               .show(5, truncate=False)
             
             return True
