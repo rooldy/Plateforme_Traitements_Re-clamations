@@ -309,11 +309,11 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_reconciliation_tables", python_callable=create_reconciliation_tables)
+    t1 = PythonOperator(task_id="create_reconciliation_tables", python_callable=create_reconciliation_tables)
     t2 = PythonOperator(task_id="check_crm_omega_coherence",    python_callable=check_crm_omega_coherence)
     t3 = PythonOperator(task_id="check_sap_crm_factures",       python_callable=check_sap_crm_factures)
     t4 = PythonOperator(task_id="check_system_delays",          python_callable=check_system_delays)
     t5 = PythonOperator(task_id="log_reconciliation_results",   python_callable=log_reconciliation_results)
     t6 = PythonOperator(task_id="notify_pipeline_run",          python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> [t2, t3, t4] >> t5 >> t6
+    t1 >> t5 >> t6

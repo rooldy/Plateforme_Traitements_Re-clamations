@@ -277,7 +277,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
+    t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
     t_extract = PythonOperator(task_id="extract_and_transform", python_callable=extract_and_transform)
     t_load = PythonOperator(task_id="load_to_postgres", python_callable=load_to_postgres)
     t_report = PythonOperator(task_id="generate_planning_report", python_callable=generate_planning_report)

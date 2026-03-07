@@ -310,7 +310,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_notification_tables",             python_callable=create_notification_tables)
+    t1 = PythonOperator(task_id="create_notification_tables",             python_callable=create_notification_tables)
     t2 = PythonOperator(task_id="detect_missing_acknowledgements",        python_callable=detect_missing_acknowledgements)
     t3 = PythonOperator(task_id="detect_missing_resolution_notifications",python_callable=detect_missing_resolution_notifications)
     t4 = PythonOperator(task_id="detect_incident_notification_gaps",      python_callable=detect_incident_notification_gaps)
@@ -318,4 +318,4 @@ with DAG(
     t6 = PythonOperator(task_id="generate_notification_report",           python_callable=generate_notification_report)
     t7 = PythonOperator(task_id="notify_pipeline_run",                    python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> [t2, t3, t4] >> t5 >> t6 >> t7
+    t1 >> t5 >> t6 >> t7

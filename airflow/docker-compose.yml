@@ -38,7 +38,8 @@ x-airflow-common:
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     
     # ===== TIMEOUTS POUR PYSPARK (IMPORTANT) =====
-    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 120                # 2 minutes (jobs PySpark)
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 120
+    AIRFLOW__DAG_PROCESSING__DAG_FILE_PROCESSOR_TIMEOUT: 120                # 2 minutes (jobs PySpark)
     AIRFLOW__API__API_REQUEST_TIMEOUT: 300                    # 5 minutes
     AIRFLOW__CELERY__OPERATION_TIMEOUT: 300                   # 5 minutes
     AIRFLOW__CELERY__TASK_TRACK_STARTED: 'true'              # Track task start

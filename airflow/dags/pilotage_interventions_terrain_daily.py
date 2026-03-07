@@ -237,10 +237,10 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_intervention_tables",         python_callable=create_intervention_tables)
+    t1 = PythonOperator(task_id="create_intervention_tables",         python_callable=create_intervention_tables)
     t2 = PythonOperator(task_id="identify_unplanned_interventions",   python_callable=identify_unplanned_interventions)
     t3 = PythonOperator(task_id="compute_technician_load",            python_callable=compute_technician_load)
     t4 = PythonOperator(task_id="generate_dispatching_report",        python_callable=generate_dispatching_report)
     t5 = PythonOperator(task_id="notify_pipeline_run",                python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> t2 >> t3 >> t4 >> t5
+    t1 >> t2 >> t3 >> t4 >> t5

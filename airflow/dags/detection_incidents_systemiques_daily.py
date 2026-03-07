@@ -297,11 +297,11 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_incident_tables",      python_callable=create_incident_tables)
+    t1 = PythonOperator(task_id="create_incident_tables",      python_callable=create_incident_tables)
     t2 = PythonOperator(task_id="detect_clusters",             python_callable=detect_clusters)
     t3 = PythonOperator(task_id="update_incident_severity",    python_callable=update_incident_severity)
     t4 = PythonOperator(task_id="detect_resolved_incidents",   python_callable=detect_resolved_incidents)
     t5 = PythonOperator(task_id="generate_incident_report",    python_callable=generate_incident_report)
     t6 = PythonOperator(task_id="notify_pipeline_run",         python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+    t1 >> t2 >> t3 >> t4 >> t5 >> t6

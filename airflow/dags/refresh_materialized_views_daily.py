@@ -263,7 +263,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t_create = PythonOperator(task_id="create_materialized_views", python_callable=create_materialized_views)
+    t_create = PythonOperator(task_id="create_materialized_views", python_callable=create_materialized_views)
     t_refresh = PythonOperator(task_id="refresh_all_views", python_callable=refresh_all_views)
     t_validate = PythonOperator(task_id="validate_views", python_callable=validate_views)
     t_notify = PythonOperator(task_id="notify_pipeline_run", python_callable=notify_pipeline_run, trigger_rule="all_done")

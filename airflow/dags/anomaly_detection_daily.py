@@ -375,7 +375,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t_create = PythonOperator(task_id="create_anomalies_table", python_callable=create_anomalies_table)
+    t_create = PythonOperator(task_id="create_anomalies_table", python_callable=create_anomalies_table)
     t_volume = PythonOperator(task_id="detect_volume_anomalies", python_callable=detect_volume_anomalies)
     t_duration = PythonOperator(task_id="detect_duration_outliers", python_callable=detect_duration_outliers)
     t_duplicates = PythonOperator(task_id="detect_duplicates", python_callable=detect_duplicates)
@@ -384,7 +384,7 @@ with DAG(
     t_notify = PythonOperator(task_id="notify_pipeline_run", python_callable=notify_pipeline_run, trigger_rule="all_done")
 
     (
-        t_create
+    t_create
         >> [t_volume, t_duration, t_duplicates, t_geo]
         >> t_report
         >> t_notify

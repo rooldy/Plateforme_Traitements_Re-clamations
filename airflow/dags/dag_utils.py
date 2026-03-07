@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 # ─── Configuration PostgreSQL ──────────────────────────────────────────────────
 DB_CONFIG = {
-    "host": "postgres",
+    "host": "reclamations-postgres",
     "port": 5432,
     "database": "airflow",
     "user": "airflow",

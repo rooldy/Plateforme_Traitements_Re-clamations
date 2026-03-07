@@ -286,34 +286,34 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t_create_table = PythonOperator(
-        task_id="create_target_table",
-        python_callable=create_target_table,
+    t_create_table = PythonOperator(
+    task_id="create_target_table",
+    python_callable=create_target_table,
     )
 
     t_extract = PythonOperator(
-        task_id="extract_and_transform",
-        python_callable=extract_and_transform,
+    task_id="extract_and_transform",
+    python_callable=extract_and_transform,
     )
 
     t_load = PythonOperator(
-        task_id="load_to_postgres",
-        python_callable=load_to_postgres,
+    task_id="load_to_postgres",
+    python_callable=load_to_postgres,
     )
 
     t_alerts = PythonOperator(
-        task_id="check_sla_alerts",
-        python_callable=check_sla_alerts,
+    task_id="check_sla_alerts",
+    python_callable=check_sla_alerts,
     )
 
     t_notify = PythonOperator(
-        task_id="notify_pipeline_run",
-        python_callable=notify_pipeline_run,
-        trigger_rule="all_done",
+    task_id="notify_pipeline_run",
+    python_callable=notify_pipeline_run,
+    trigger_rule="all_done",
     )
 
     (
-        t_create_table
+    t_create_table
         >> t_extract
         >> t_load
         >> t_alerts

@@ -440,7 +440,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_cre_tables",          python_callable=create_cre_tables)
+    t1 = PythonOperator(task_id="create_cre_tables",          python_callable=create_cre_tables)
     t2 = PythonOperator(task_id="compute_saidi_saifi",         python_callable=compute_saidi_saifi)
     t3 = PythonOperator(task_id="compute_delais_legaux",       python_callable=compute_delais_legaux)
     t4 = PythonOperator(task_id="compute_reclamations_fondees",python_callable=compute_reclamations_fondees)
@@ -448,4 +448,4 @@ with DAG(
     t6 = PythonOperator(task_id="generate_cre_report",         python_callable=generate_cre_report)
     t7 = PythonOperator(task_id="notify_pipeline_run",         python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> t2 >> [t3, t4] >> t5 >> t6 >> t7
+    t1 >> t2 >> t5 >> t6 >> t7

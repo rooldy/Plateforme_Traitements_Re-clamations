@@ -353,11 +353,11 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_meteo_tables",   python_callable=create_meteo_tables)
+    t1 = PythonOperator(task_id="create_meteo_tables",   python_callable=create_meteo_tables)
     t2 = PythonOperator(task_id="ingest_meteo_data",     python_callable=ingest_meteo_data)
     t3 = PythonOperator(task_id="classify_vigilance",    python_callable=classify_vigilance)
     t4 = PythonOperator(task_id="compute_correlation",   python_callable=compute_correlation)
     t5 = PythonOperator(task_id="generate_meteo_report", python_callable=generate_meteo_report)
     t6 = PythonOperator(task_id="notify_pipeline_run",   python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+    t1 >> t2 >> t3 >> t4 >> t5 >> t6

@@ -284,11 +284,11 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_pdl_tables",          python_callable=create_pdl_tables)
+    t1 = PythonOperator(task_id="create_pdl_tables",          python_callable=create_pdl_tables)
     t2 = PythonOperator(task_id="sync_pdl_from_linky",        python_callable=sync_pdl_from_linky)
     t3 = PythonOperator(task_id="link_reclamations_to_pdl",   python_callable=link_reclamations_to_pdl)
     t4 = PythonOperator(task_id="detect_pdl_incoherences",    python_callable=detect_pdl_incoherences)
     t5 = PythonOperator(task_id="generate_pdl_stats",         python_callable=generate_pdl_stats)
     t6 = PythonOperator(task_id="notify_pipeline_run",        python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+    t1 >> t2 >> t3 >> t4 >> t5 >> t6

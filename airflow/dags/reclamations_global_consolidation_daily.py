@@ -321,10 +321,10 @@ with DAG(
 ) as dag:
 
     # Attend les deux pipelines fondateurs
-            t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
+    t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
     t_consolidate = PythonOperator(task_id="consolidate_all_sources", python_callable=consolidate_all_sources)
     t_kpis = PythonOperator(task_id="compute_cross_type_kpis", python_callable=compute_cross_type_kpis)
     t_summary = PythonOperator(task_id="generate_consolidation_summary", python_callable=generate_consolidation_summary)
     t_notify = PythonOperator(task_id="notify_pipeline_run", python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    [wait_reclamation, wait_kpi] >> t_create >> t_consolidate >> t_kpis >> t_summary >> t_notify
+    t_create >> t_consolidate >> t_kpis >> t_summary >> t_notify

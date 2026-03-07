@@ -263,7 +263,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
+    t_create = PythonOperator(task_id="create_target_table", python_callable=create_target_table)
     t_aggregate = PythonOperator(task_id="aggregate_monthly_kpis", python_callable=aggregate_monthly_kpis)
     t_report = PythonOperator(task_id="generate_sla_compliance_report", python_callable=generate_sla_compliance_report)
     t_notify = PythonOperator(task_id="notify_pipeline_run", python_callable=notify_pipeline_run, trigger_rule="all_done")

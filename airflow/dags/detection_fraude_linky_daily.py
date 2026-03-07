@@ -365,7 +365,7 @@ with DAG(
     doc_md=__doc__,
 ) as dag:
 
-        t1 = PythonOperator(task_id="create_fraude_tables",                python_callable=create_fraude_tables)
+    t1 = PythonOperator(task_id="create_fraude_tables",                python_callable=create_fraude_tables)
     t2 = PythonOperator(task_id="detect_zero_consumption",             python_callable=detect_zero_consumption)
     t3 = PythonOperator(task_id="detect_index_delta",                  python_callable=detect_index_delta)
     t4 = PythonOperator(task_id="detect_consumption_during_outage",    python_callable=detect_consumption_during_outage)
@@ -374,4 +374,4 @@ with DAG(
     t7 = PythonOperator(task_id="generate_fraude_report",              python_callable=generate_fraude_report)
     t8 = PythonOperator(task_id="notify_pipeline_run",                 python_callable=notify_pipeline_run, trigger_rule="all_done")
 
-    wait >> t1 >> [t2, t3, t4] >> t5 >> t6 >> t7 >> t8
+    t1 >> t5 >> t6 >> t7 >> t8
