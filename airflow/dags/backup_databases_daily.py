@@ -51,7 +51,7 @@ DEFAULT_ARGS = {
 
 def prepare_backup_directory(**ctx):
     """Crée la structure de répertoires pour le backup du jour."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     backup_path = os.path.join(BACKUP_DIR, run_date)
     os.makedirs(backup_path, exist_ok=True)
     os.makedirs(os.path.join(backup_path, "csv"), exist_ok=True)
@@ -65,7 +65,7 @@ def run_pg_dump(**ctx):
     Utilise pg_dump via subprocess (disponible dans le container Airflow).
     """
     backup_path = ctx["ti"].xcom_pull(key="backup_path", task_ids="prepare_backup_directory")
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     dump_file = os.path.join(backup_path, f"reclamations_{run_date}.dump")
 
     env = {
@@ -113,7 +113,7 @@ def backup_critical_tables_csv(**ctx):
     """Exporte les tables critiques en CSV gzippé (backup de secours lisible)."""
     backup_path = ctx["ti"].xcom_pull(key="backup_path", task_ids="prepare_backup_directory")
     csv_dir = os.path.join(backup_path, "csv")
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
 
     conn = psycopg2.connect(**DB_CONFIG)
     total_rows = 0
@@ -217,7 +217,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=csv_rows,
         duration_seconds=0,
-        message=f"Backup OK [{ctx['ds']}] — dump={dump_size:.1f}MB | CSV={csv_rows} lignes",
+        message=f"Backup OK [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — dump={dump_size:.1f}MB | CSV={csv_rows} lignes",
     )
 
 

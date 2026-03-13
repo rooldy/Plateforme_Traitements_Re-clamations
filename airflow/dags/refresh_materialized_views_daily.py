@@ -249,7 +249,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=len(MATERIALIZED_VIEWS),
         duration_seconds=total_duration,
-        message=f"Refresh vues matérialisées [{ctx['ds']}] : {ok_count}/{len(MATERIALIZED_VIEWS)} OK | {total_duration:.1f}s total",
+        message=f"Refresh vues matérialisées [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] : {ok_count}/{len(MATERIALIZED_VIEWS)} OK | {total_duration:.1f}s total",
     )
 
 with DAG(

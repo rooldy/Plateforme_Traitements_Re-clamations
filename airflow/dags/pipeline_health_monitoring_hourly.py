@@ -178,7 +178,7 @@ def record_health_metrics(**ctx):
     failed = ctx["ti"].xcom_pull(key="failed", task_ids="check_pipeline_runs") or []
     slow = ctx["ti"].xcom_pull(key="slow", task_ids="check_pipeline_runs") or []
 
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         with conn.cursor() as cur:

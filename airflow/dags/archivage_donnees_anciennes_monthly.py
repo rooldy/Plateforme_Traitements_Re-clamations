@@ -77,7 +77,7 @@ def create_archive_tables(**ctx):
 
 def compute_archive_scope(**ctx):
     """Calcule la date limite d'archivage et le volume de données éligibles."""
-    run_dt = datetime.strptime(ctx["ds"], "%Y-%m-%d")
+    run_dt = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).replace(tzinfo=None)
     cutoff_date = (run_dt - relativedelta(months=RETENTION_MONTHS)).date()
 
     log.info("Date de coupure archivage : %s (données antérieures à cette date)", cutoff_date)
@@ -171,7 +171,7 @@ def archive_old_data(**ctx):
 def export_archives_to_parquet(**ctx):
     """Exporte les données archivées en Parquet compressé pour stockage long terme."""
     cutoff_date = ctx["ti"].xcom_pull(key="cutoff_date", task_ids="compute_archive_scope")
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
 
     from dag_utils import get_spark_session
     import os
@@ -233,7 +233,7 @@ def generate_archive_report(**ctx):
     cutoff_date = ctx["ti"].xcom_pull(key="cutoff_date", task_ids="compute_archive_scope")
     scope = ctx["ti"].xcom_pull(key="archive_scope", task_ids="compute_archive_scope") or {}
 
-    log.info("=== Rapport Archivage Mensuel [%s] ===", ctx["ds"])
+    log.info("=== Rapport Archivage Mensuel [%s] ===", (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"))
     log.info("Date de coupure : %s | Total archivé : %d lignes", cutoff_date, total_archived)
     log.info("Détail par table :")
     for table, info in scope.items():
@@ -247,7 +247,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=total,
         duration_seconds=0,
-        message=f"Archivage mensuel OK [{ctx['ds']}] — {total} lignes archivées",
+        message=f"Archivage mensuel OK [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {total} lignes archivées",
     )
 
 

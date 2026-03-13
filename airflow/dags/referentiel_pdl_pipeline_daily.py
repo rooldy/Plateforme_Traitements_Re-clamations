@@ -120,7 +120,7 @@ def sync_pdl_from_linky(**ctx):
     Synchronise le référentiel PDL depuis les données Linky.
     Les compteurs Linky sont la source de vérité pour les PDL actifs.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     synced = 0
 
@@ -159,7 +159,7 @@ def sync_pdl_from_linky(**ctx):
 
 def link_reclamations_to_pdl(**ctx):
     """Rattache les réclamations Linky à leur PDL dans reclamations_pdl."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     linked = 0
 
@@ -200,7 +200,7 @@ def detect_pdl_incoherences(**ctx):
     - Double affectation (même PDL, deux clients actifs simultanément)
     - Client ayant déménagé mais avec réclamations encore rattachées à l'ancien PDL
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     incoherences = 0
 
@@ -252,7 +252,7 @@ def detect_pdl_incoherences(**ctx):
         conn.close()
 
 def generate_pdl_stats(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         with conn.cursor() as cur:
@@ -271,7 +271,7 @@ def notify_pipeline_run(**ctx):
     synced = ctx["ti"].xcom_pull(key="synced_pdl", task_ids="sync_pdl_from_linky") or 0
     inco = ctx["ti"].xcom_pull(key="incoherences", task_ids="detect_pdl_incoherences") or 0
     log_pipeline_run(DAG_ID, "WARNING" if inco > 0 else "SUCCESS", synced, 0,
-                     f"PDL [{ctx['ds']}] — {synced} PDL synchronisés | {inco} incohérences détectées")
+                     f"PDL [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {synced} PDL synchronisés | {inco} incohérences détectées")
 
 with DAG(
     dag_id=DAG_ID,

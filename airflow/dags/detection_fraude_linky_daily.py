@@ -111,7 +111,7 @@ def create_fraude_tables(**ctx):
 
 def detect_zero_consumption(**ctx):
     """Détecte les compteurs actifs avec consommation nulle sur plusieurs jours."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     detected = 0
 
@@ -157,7 +157,7 @@ def detect_zero_consumption(**ctx):
 
 def detect_index_delta(**ctx):
     """Détecte les écarts significatifs entre index relevé et consommation calculée."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     detected = 0
 
@@ -203,7 +203,7 @@ def detect_consumption_during_outage(**ctx):
     Détecte une consommation enregistrée pendant une coupure déclarée.
     Indique un court-circuit du disjoncteur (fraude ou défaillance grave).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     detected = 0
 
@@ -245,7 +245,7 @@ def compute_fraud_scores(**ctx):
     Calcule un score de fraude pour chaque compteur ayant plusieurs anomalies.
     Score = f(nb anomalies, types, sévérité, récence).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -301,7 +301,7 @@ def compute_fraud_scores(**ctx):
 
 def flag_for_surveillance(**ctx):
     """Met sous surveillance les compteurs à score élevé."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -333,7 +333,7 @@ def flag_for_surveillance(**ctx):
         conn.close()
 
 def generate_fraude_report(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     zero = ctx["ti"].xcom_pull(key="zero_conso", task_ids="detect_zero_consumption") or 0
     delta = ctx["ti"].xcom_pull(key="delta_index", task_ids="detect_index_delta") or 0
     coupure = ctx["ti"].xcom_pull(key="coupure_conso", task_ids="detect_consumption_during_outage") or 0
@@ -352,7 +352,7 @@ def notify_pipeline_run(**ctx):
         (ctx["ti"].xcom_pull(key="coupure_conso", task_ids="detect_consumption_during_outage") or 0)
     )
     log_pipeline_run(DAG_ID, "WARNING" if total > 0 else "SUCCESS", total, 0,
-                     f"Fraude Linky [{ctx['ds']}] — {total} anomalies détectées")
+                     f"Fraude Linky [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {total} anomalies détectées")
 
 with DAG(
     dag_id=DAG_ID,

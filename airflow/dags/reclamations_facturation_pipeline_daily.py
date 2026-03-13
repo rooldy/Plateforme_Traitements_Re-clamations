@@ -81,7 +81,7 @@ def extract_and_transform(**ctx):
     from dag_utils import get_spark_session, drop_partition_cols
     import os
 
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     spark = get_spark_session("FacturationPipeline")
 
     try:
@@ -195,7 +195,7 @@ def load_to_postgres(**ctx):
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM reclamations.reclamations_facturation_detail WHERE export_date = %s",
-                (ctx["ds"],)
+                ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),)
             )
             with open(csv_files[0], "r", encoding="utf-8") as f:
                 reader = csv_mod.DictReader(f)
@@ -226,13 +226,13 @@ def compute_financial_metrics(**ctx):
                     COUNT(*) FILTER (WHERE risque_depassement)                           AS en_risque
                 FROM reclamations.reclamations_facturation_detail
                 WHERE export_date = %s
-            """, (ctx["ds"],))
+            """, ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),))
             row = cur.fetchone()
         total, montant_total, montant_moyen, hors_sla, en_risque = row
         log.info(
             "Métriques FACTURATION [%s] : total=%d | montant_total=%.2f€ | "
             "montant_moyen=%.2f€ | hors_sla=%d | en_risque=%d",
-            ctx["ds"], total or 0, montant_total or 0,
+            (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"), total or 0, montant_total or 0,
             montant_moyen or 0, hors_sla or 0, en_risque or 0,
         )
     finally:
@@ -245,7 +245,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=rows,
         duration_seconds=0,
-        message=f"Pipeline FACTURATION OK — {rows} réclamations traitées [{ctx['ds']}]",
+        message=f"Pipeline FACTURATION OK — {rows} réclamations traitées [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}]",
     )
 
 with DAG(

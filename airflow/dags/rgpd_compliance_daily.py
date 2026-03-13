@@ -210,7 +210,7 @@ def process_droit_a_loubli(**ctx):
     Délai légal : 1 mois (RGPD art. 17 et art. 12 §3).
     Supprime les données personnelles identifiables du client des tables de production.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     traites = 0
 
@@ -395,7 +395,7 @@ def generate_rgpd_report(**ctx):
             """)
             rows = cur.fetchall()
 
-        log.info("=== Rapport RGPD [%s] ===", ctx["ds"])
+        log.info("=== Rapport RGPD [%s] ===", (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"))
         log.info("  Droits traités aujourd'hui : %d oubli", oubli)
         log.info("  Alertes rétention : %d tables", alertes)
         log.info("  État des demandes :")
@@ -409,7 +409,7 @@ def notify_pipeline_run(**ctx):
     oubli = ctx["ti"].xcom_pull(key="oubli_traites", task_ids="process_droit_a_loubli") or 0
     alertes = ctx["ti"].xcom_pull(key="alertes_retention", task_ids="detect_retention_depassee") or 0
     log_pipeline_run(DAG_ID, "WARNING" if alertes > 0 else "SUCCESS", oubli, 0,
-                     f"RGPD [{ctx['ds']}] — {oubli} droits traités | {alertes} alertes rétention")
+                     f"RGPD [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {oubli} droits traités | {alertes} alertes rétention")
 
 
 with DAG(

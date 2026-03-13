@@ -159,7 +159,7 @@ def update_data_quality_metrics(**ctx):
     """Enregistre le score de fraîcheur dans data_quality_metrics."""
     score = ctx["ti"].xcom_pull(key="freshness_score", task_ids="compute_freshness_score") or 0
     alerts = ctx["ti"].xcom_pull(key="alerts", task_ids="check_table_freshness") or []
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
 
     conn = psycopg2.connect(**DB_CONFIG)
     try:

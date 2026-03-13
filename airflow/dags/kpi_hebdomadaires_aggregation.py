@@ -70,7 +70,7 @@ def create_target_table(**ctx):
 
 def aggregate_weekly_kpis(**ctx):
     """Agrège les KPIs quotidiens en KPIs hebdomadaires avec calcul d'évolution."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     # La semaine analysée est la semaine précédente (lundi → dimanche)
     run_dt = datetime.strptime(run_date, "%Y-%m-%d")
     # Dimanche précédent = run_dt - 1 jour (car on tourne le lundi)
@@ -97,24 +97,24 @@ def aggregate_weekly_kpis(**ctx):
                     SELECT
                         region,
                         type_reclamation,
-                        SUM(nombre_reclamations_ouvertes)          AS total_ouvertes,
-                        SUM(nombre_reclamations_cloturees)         AS total_cloturees,
-                        SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total,
-                        AVG(duree_moyenne_traitement_heures)       AS duree_moyenne,
-                        AVG(duree_mediane_traitement_heures)       AS duree_mediane,
-                        AVG(taux_respect_sla)                      AS taux_sla,
-                        AVG(taux_reclamations_critiques)           AS taux_critique
+                        SUM(nombre_ouvertes)          AS total_ouvertes,
+                        SUM(nombre_cloturees)         AS total_cloturees,
+                        SUM(nombre_ouvertes + nombre_cloturees) AS total,
+                        AVG(duree_moyenne_traitement)       AS duree_moyenne,
+                        AVG(duree_mediane_traitement)       AS duree_mediane,
+                        ROUND((1 - AVG(nb_critiques::NUMERIC / NULLIF(nombre_reclamations_total,0))) * 100, 2) AS taux_sla,
+                        AVG(nb_critiques)           AS taux_critique
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s AND %s
+                    WHERE date_calcul BETWEEN %s AND %s
                     GROUP BY region, type_reclamation
                 ),
                 semaine_precedente AS (
                     SELECT
                         region,
                         type_reclamation,
-                        SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total_prec
+                        SUM(nombre_ouvertes + nombre_cloturees) AS total_prec
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s::DATE - INTERVAL '7 days' AND %s::DATE - INTERVAL '1 day'
+                    WHERE date_calcul BETWEEN %s::DATE - INTERVAL '7 days' AND %s::DATE - INTERVAL '1 day'
                     GROUP BY region, type_reclamation
                 )
                 INSERT INTO reclamations.kpis_hebdomadaires

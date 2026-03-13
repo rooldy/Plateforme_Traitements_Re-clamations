@@ -92,7 +92,7 @@ def check_crm_omega_coherence(**ctx):
     et le statut des interventions terrain (interventions_terrain / OMEGA).
     Cas typique : réclamation CRM=CLOTURE mais intervention OMEGA=EN_COURS.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     incoherences = 0
     verifies = 0
@@ -149,7 +149,7 @@ def check_sap_crm_factures(**ctx):
     et les réclamations de facturation dans le CRM.
     Cas typique : facture corrigée dans SAP mais réclamation FACTURATION toujours ouverte.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     incoherences = 0
     verifies = 0
@@ -207,7 +207,7 @@ def check_system_delays(**ctx):
     Si une réclamation a été créée dans CRM il y a > 4h et n'a pas
     encore d'intervention OMEGA créée pour les types terrain, c'est une anomalie.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     incoherences = 0
 
@@ -258,7 +258,7 @@ def check_system_delays(**ctx):
 
 def log_reconciliation_results(**ctx):
     """Enregistre les résultats dans reconciliation_log et génère le rapport."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     crm_omega = ctx["ti"].xcom_pull(key="crm_omega", task_ids="check_crm_omega_coherence") or (0, 0)
     sap_crm = ctx["ti"].xcom_pull(key="sap_crm", task_ids="check_sap_crm_factures") or (0, 0)
     delays = ctx["ti"].xcom_pull(key="delays", task_ids="check_system_delays") or 0
@@ -296,7 +296,7 @@ def log_reconciliation_results(**ctx):
 def notify_pipeline_run(**ctx):
     total = ctx["ti"].xcom_pull(key="total_inco", task_ids="log_reconciliation_results") or 0
     log_pipeline_run(DAG_ID, "WARNING" if total > 0 else "SUCCESS", total, 0,
-                     f"Réconciliation SI [{ctx['ds']}] — {total} incohérences CRM/OMEGA/SAP")
+                     f"Réconciliation SI [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {total} incohérences CRM/OMEGA/SAP")
 
 with DAG(
     dag_id=DAG_ID,

@@ -309,7 +309,7 @@ def generate_report(**ctx):
         "  Compteurs    : %d\n"
         "  Scénarios    : NORMAL(70%%), HORS_SLA(15%%), RISQUE_SLA(10%%), CRITIQUE(5%%)\n"
         "  Usage : Exécuter les pipelines avec la source configurée sur %s pour valider",
-        ctx["ds"], TEST_SCHEMA, total, N_CLIENTS, N_COMPTEURS, TEST_SCHEMA
+        (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"), TEST_SCHEMA, total, N_CLIENTS, N_COMPTEURS, TEST_SCHEMA
     )
 
 
@@ -320,7 +320,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=total,
         duration_seconds=0,
-        message=f"Données de test générées [{ctx['ds']}] : {total} réclamations | schéma={TEST_SCHEMA}",
+        message=f"Données de test générées [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] : {total} réclamations | schéma={TEST_SCHEMA}",
     )
 
 

@@ -112,7 +112,7 @@ def ingest_meteo_data(**ctx):
     Ingère les données météo depuis les fichiers Météo-France
     ou depuis l'API Open-Meteo en fallback.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     meteo_dir = "/opt/airflow/data/meteo"
     meteo_file = os.path.join(meteo_dir, f"meteo_{run_date}.csv")
 
@@ -198,7 +198,7 @@ def classify_vigilance(**ctx):
     Calcule la vigilance météo automatiquement si non fournie par Météo-France.
     Règles basées sur le guide officiel Météo-France.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -246,7 +246,7 @@ def compute_correlation(**ctx):
     Calcule la corrélation entre les événements météo et le volume de coupures.
     Impact météo = (coupures_jour - baseline_30j) / baseline_30j × 100%
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -314,7 +314,7 @@ def compute_correlation(**ctx):
         conn.close()
 
 def generate_meteo_report(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         with conn.cursor() as cur:
@@ -340,7 +340,7 @@ def generate_meteo_report(**ctx):
 def notify_pipeline_run(**ctx):
     rows = ctx["ti"].xcom_pull(key="meteo_rows", task_ids="ingest_meteo_data") or 0
     log_pipeline_run(DAG_ID, "SUCCESS", rows, 0,
-                     f"Corrélation météo [{ctx['ds']}] — {rows} départements traités")
+                     f"Corrélation météo [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {rows} départements traités")
 
 with DAG(
     dag_id=DAG_ID,

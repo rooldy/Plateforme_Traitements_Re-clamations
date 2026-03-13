@@ -80,7 +80,7 @@ def consolidate_all_sources(**ctx):
     Consolide toutes les sources de réclamations via SQL (plus efficace que Spark
     pour une jointure de tables PostgreSQL déjà chargées).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     total_rows = 0
 
@@ -217,7 +217,7 @@ def consolidate_all_sources(**ctx):
 
 def compute_cross_type_kpis(**ctx):
     """Calcule des KPIs cross-types et les insère dans kpis_daily (upsert)."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -287,10 +287,10 @@ def generate_consolidation_summary(**ctx):
                 WHERE export_date = %s
                 GROUP BY type_reclamation
                 ORDER BY total DESC
-            """, (ctx["ds"],))
+            """, ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),))
             rows = cur.fetchall()
 
-        log.info("=== Résumé Consolidation Globale [%s] ===", ctx["ds"])
+        log.info("=== Résumé Consolidation Globale [%s] ===", (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"))
         log.info("  %-30s %8s %8s %8s %8s %10s",
                  "Type", "Total", "En cours", "Hors SLA", "En risque", "Durée moy")
         for type_rec, total, en_cours, hors_sla, en_risque, duree_moy in rows:
@@ -306,7 +306,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=total_rows,
         duration_seconds=0,
-        message=f"Consolidation globale OK — {total_rows} réclamations consolidées [{ctx['ds']}]",
+        message=f"Consolidation globale OK — {total_rows} réclamations consolidées [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}]",
     )
 
 with DAG(

@@ -81,7 +81,7 @@ def extract_and_transform(**ctx):
 
     start = datetime.now(timezone.utc)
     spark = get_spark_session("CoupuresPipeline")
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
 
     try:
         # Lecture depuis le Gold layer (reclamations_processed via Parquet)
@@ -205,7 +205,7 @@ def load_to_postgres(**ctx):
             # Upsert : supprime les lignes existantes pour la date d'export
             cur.execute(
                 "DELETE FROM reclamations.reclamations_coupures_detail WHERE export_date = %s",
-                (ctx["ds"],)
+                ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),)
             )
             with open(csv_file, "r", encoding="utf-8") as f:
                 reader = csv_mod.DictReader(f)
@@ -241,7 +241,7 @@ def check_sla_alerts(**ctx):
                 WHERE statut IN ('OUVERT', 'EN_COURS')
                   AND duree_heures > %s
                   AND export_date = %s
-            """, (SLA_HEURES_TYPE, ctx["ds"]))
+            """, (SLA_HEURES_TYPE, (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")))
             depassements = cur.fetchone()[0]
 
             # Risques imminents
@@ -249,10 +249,10 @@ def check_sla_alerts(**ctx):
                 SELECT COUNT(*) FROM reclamations.reclamations_coupures_detail
                 WHERE risque_depassement = TRUE
                   AND export_date = %s
-            """, (ctx["ds"],))
+            """, ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),))
             risques = cur.fetchone()[0]
 
-        msg = (f"COUPURE_ELECTRIQUE [{ctx['ds']}] — "
+        msg = (f"COUPURE_ELECTRIQUE [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — "
                f"Dépassements SLA 48h : {depassements} | Risques <12h : {risques}")
         log.warning(msg) if (depassements > 0 or risques > 0) else log.info(msg)
         ctx["ti"].xcom_push(key="alert_summary", value=msg)

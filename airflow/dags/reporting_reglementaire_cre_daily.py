@@ -144,7 +144,7 @@ def compute_saidi_saifi(**ctx):
     SAIFI = Σ(nb clients affectés par interruption) / nb clients total
     CAIDI = SAIDI / SAIFI
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     rows_inserted = 0
 
@@ -223,7 +223,7 @@ def compute_saidi_saifi(**ctx):
 
 def compute_delais_legaux(**ctx):
     """Calcule les indicateurs de délais légaux raccordement et mise en service."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -295,7 +295,7 @@ def compute_reclamations_fondees(**ctx):
     (présence d'un geste commercial, correction de facture, etc.).
     Ici approximé par : réclamation résolue dans les délais SLA.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -332,7 +332,7 @@ def evaluate_cre_compliance(**ctx):
     Évalue la conformité réglementaire et génère les alertes CRE.
     Toute non-conformité est enregistrée dans alertes_cre.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     alertes = 0
 
@@ -393,7 +393,7 @@ def evaluate_cre_compliance(**ctx):
 
 def generate_cre_report(**ctx):
     """Génère le rapport CRE quotidien dans les logs (base pour export mensuel)."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -427,7 +427,7 @@ def notify_pipeline_run(**ctx):
     alertes = ctx["ti"].xcom_pull(key="alertes_count", task_ids="evaluate_cre_compliance") or 0
     rows = ctx["ti"].xcom_pull(key="saidi_rows", task_ids="compute_saidi_saifi") or 0
     log_pipeline_run(DAG_ID, "WARNING" if alertes > 0 else "SUCCESS", rows, 0,
-                     f"Reporting CRE [{ctx['ds']}] — {rows} lignes | {alertes} alerte(s) réglementaire(s)")
+                     f"Reporting CRE [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {rows} lignes | {alertes} alerte(s) réglementaire(s)")
 
 with DAG(
     dag_id=DAG_ID,

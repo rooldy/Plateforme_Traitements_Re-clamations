@@ -75,7 +75,7 @@ def create_target_table(**ctx):
 
 def aggregate_monthly_kpis(**ctx):
     """Agrège les KPIs quotidiens sur le mois précédent avec comparaisons temporelles."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     run_dt = datetime.strptime(run_date, "%Y-%m-%d")
 
     # Mois précédent

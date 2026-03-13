@@ -108,7 +108,7 @@ def detect_missing_acknowledgements(**ctx):
     Détecte les réclamations sans accusé de réception client
     au-delà de 10 jours (loi Chatel).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     manquants = 0
 
@@ -153,7 +153,7 @@ def detect_missing_resolution_notifications(**ctx):
     Vérifie que les clients ont bien été notifiés de la résolution
     dans les 48h suivant la clôture.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     manquants = 0
 
@@ -204,7 +204,7 @@ def detect_incident_notification_gaps(**ctx):
     Vérifie que les clients affectés par un incident systémique
     ont bien été notifiés dans les 2h (protocole crise Enedis).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     manquants = 0
 
@@ -246,7 +246,7 @@ def detect_incident_notification_gaps(**ctx):
 
 def compute_communication_sla(**ctx):
     """Calcule les KPIs de conformité des SLA de communication."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -282,7 +282,7 @@ def compute_communication_sla(**ctx):
         conn.close()
 
 def generate_notification_report(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     ar = ctx["ti"].xcom_pull(key="ar_manquants", task_ids="detect_missing_acknowledgements") or 0
     resol = ctx["ti"].xcom_pull(key="resol_manquants", task_ids="detect_missing_resolution_notifications") or 0
     incident = ctx["ti"].xcom_pull(key="incident_manquants", task_ids="detect_incident_notification_gaps") or 0
@@ -297,7 +297,7 @@ def generate_notification_report(**ctx):
 def notify_pipeline_run(**ctx):
     total = ctx["ti"].xcom_pull(key="total_manquants", task_ids="generate_notification_report") or 0
     log_pipeline_run(DAG_ID, "WARNING" if total > 0 else "SUCCESS", total, 0,
-                     f"Notifications client [{ctx['ds']}] — {total} notifications manquantes")
+                     f"Notifications client [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {total} notifications manquantes")
 
 with DAG(
     dag_id=DAG_ID,

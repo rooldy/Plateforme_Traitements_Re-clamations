@@ -103,7 +103,7 @@ def create_intervention_tables(**ctx):
 
 def identify_unplanned_interventions(**ctx):
     """Identifie les réclamations nécessitant une intervention terrain non encore planifiée."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     unplanned = 0
 
@@ -162,7 +162,7 @@ def identify_unplanned_interventions(**ctx):
 
 def compute_technician_load(**ctx):
     """Calcule la charge de chaque technicien pour optimiser le dispatching."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -201,7 +201,7 @@ def compute_technician_load(**ctx):
         conn.close()
 
 def generate_dispatching_report(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         with conn.cursor() as cur:
@@ -224,7 +224,7 @@ def generate_dispatching_report(**ctx):
 def notify_pipeline_run(**ctx):
     unplanned = ctx["ti"].xcom_pull(key="unplanned", task_ids="identify_unplanned_interventions") or 0
     log_pipeline_run(DAG_ID, "WARNING" if unplanned > 50 else "SUCCESS", unplanned, 0,
-                     f"Dispatching terrain [{ctx['ds']}] — {unplanned} réclamations sans intervention planifiée")
+                     f"Dispatching terrain [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {unplanned} réclamations sans intervention planifiée")
 
 with DAG(
     dag_id=DAG_ID,

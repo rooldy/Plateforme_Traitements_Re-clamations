@@ -84,7 +84,7 @@ def extract_and_transform(**ctx):
     from dag_utils import get_spark_session, drop_partition_cols
     import os
 
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     spark = get_spark_session("RaccordementPipeline")
 
     try:
@@ -209,7 +209,7 @@ def load_to_postgres(**ctx):
         with conn.cursor() as cur:
             cur.execute(
                 "DELETE FROM reclamations.reclamations_raccordement_detail WHERE export_date = %s",
-                (ctx["ds"],)
+                ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),)
             )
             with open(csv_files[0], "r", encoding="utf-8") as f:
                 reader = csv_mod.DictReader(f)
@@ -243,10 +243,10 @@ def generate_planning_report(**ctx):
                 WHERE export_date = %s
                 GROUP BY region
                 ORDER BY en_risque_sla DESC, total DESC
-            """, (ctx["ds"],))
+            """, ((ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"),))
             rows = cur.fetchall()
 
-        log.info("=== Rapport Raccordement [%s] ===", ctx["ds"])
+        log.info("=== Rapport Raccordement [%s] ===", (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d"))
         for region, total, avec, sans, risque, duree in rows:
             log.info(
                 "  %s : total=%d | planifiées=%d | non_planifiées=%d | "
@@ -263,7 +263,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=rows,
         duration_seconds=0,
-        message=f"Pipeline RACCORDEMENT_RESEAU OK — {rows} réclamations [{ctx['ds']}]",
+        message=f"Pipeline RACCORDEMENT_RESEAU OK — {rows} réclamations [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}]",
     )
 
 with DAG(

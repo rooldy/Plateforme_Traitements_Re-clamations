@@ -100,7 +100,7 @@ def detect_clusters(**ctx):
     Détecte les clusters de réclamations par département + fenêtre temporelle.
     Un cluster = même département, même fenêtre de 2h, >= SEUIL_CLIENTS clients.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     incidents_created = 0
 
@@ -258,7 +258,7 @@ def detect_resolved_incidents(**ctx):
         conn.close()
 
 def generate_incident_report(**ctx):
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         with conn.cursor() as cur:
@@ -284,7 +284,7 @@ def notify_pipeline_run(**ctx):
     incidents = ctx["ti"].xcom_pull(key="incidents_created", task_ids="detect_clusters") or 0
     clusters = ctx["ti"].xcom_pull(key="clusters_count", task_ids="detect_clusters") or 0
     log_pipeline_run(DAG_ID, "WARNING" if incidents > 0 else "SUCCESS", clusters, 0,
-                     f"Incidents systémiques [{ctx['ds']}] — {incidents} créés | {clusters} clusters analysés")
+                     f"Incidents systémiques [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {incidents} créés | {clusters} clusters analysés")
 
 with DAG(
     dag_id=DAG_ID,

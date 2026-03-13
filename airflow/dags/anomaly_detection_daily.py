@@ -79,7 +79,7 @@ def detect_volume_anomalies(**ctx):
     Détecte les pics/creux de volume en comparant le jour courant
     à la moyenne mobile des 7 derniers jours ± 2 écarts-types.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     anomalies_found = 0
     conn = psycopg2.connect(**DB_CONFIG)
 
@@ -151,7 +151,7 @@ def detect_duration_outliers(**ctx):
     Détecte les réclamations avec des durées aberrantes (méthode IQR).
     Outlier si durée > Q3 + 3*IQR ou durée négative.
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     anomalies_found = 0
     conn = psycopg2.connect(**DB_CONFIG)
 
@@ -228,7 +228,7 @@ def detect_duration_outliers(**ctx):
 
 def detect_duplicates(**ctx):
     """Détecte les doublons potentiels (même client, même type, même jour)."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     anomalies_found = 0
     conn = psycopg2.connect(**DB_CONFIG)
 
@@ -271,7 +271,7 @@ def detect_duplicates(**ctx):
 
 def detect_geographic_anomalies(**ctx):
     """Détecte les déséquilibres géographiques anormaux (régions sans données)."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     anomalies_found = 0
     conn = psycopg2.connect(**DB_CONFIG)
 
@@ -317,7 +317,7 @@ def detect_geographic_anomalies(**ctx):
 
 def generate_anomaly_report(**ctx):
     """Génère le rapport de synthèse des anomalies du jour."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     conn = psycopg2.connect(**DB_CONFIG)
 
     try:
@@ -360,7 +360,7 @@ def notify_pipeline_run(**ctx):
         status="WARNING" if total > 0 else "SUCCESS",
         rows_processed=total,
         duration_seconds=0,
-        message=(f"Détection anomalies [{ctx['ds']}] : {total} total — "
+        message=(f"Détection anomalies [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] : {total} total — "
                  f"volumes={vol}, durées={dur}, doublons={dup}, géo={geo}"),
     )
 

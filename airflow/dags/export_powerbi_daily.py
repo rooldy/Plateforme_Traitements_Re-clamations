@@ -116,7 +116,7 @@ DEFAULT_ARGS = {
 
 def prepare_export_directory(**ctx):
     """Crée le répertoire d'export et archive l'export précédent."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     archive_dir = os.path.join(EXPORT_DIR, "archives", run_date)
 
     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -137,7 +137,7 @@ def export_tables_to_csv(**ctx):
     Exporte chaque table configurée en CSV UTF-8-BOM avec séparateur ;
     (format natif Power BI / Excel France).
     """
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     export_stats = {}
 
     conn = psycopg2.connect(**DB_CONFIG)
@@ -189,7 +189,7 @@ def export_tables_to_csv(**ctx):
 
 def generate_metadata_file(**ctx):
     """Génère un fichier metadata.json avec les infos d'export pour Power BI Gateway."""
-    run_date = ctx["ds"]
+    run_date = (ctx.get("logical_date") or ctx.get("data_interval_start") or __import__("datetime").datetime.now()).strftime("%Y-%m-%d")
     export_stats = ctx["ti"].xcom_pull(key="export_stats", task_ids="export_tables_to_csv") or {}
 
     metadata = {
@@ -238,7 +238,7 @@ def notify_pipeline_run(**ctx):
         status="SUCCESS",
         rows_processed=total_rows,
         duration_seconds=0,
-        message=f"Export Power BI OK [{ctx['ds']}] — {total_rows} lignes | {len(EXPORTS_CONFIG)} fichiers",
+        message=f"Export Power BI OK [{(ctx.get('logical_date') or ctx.get('data_interval_start') or __import__('datetime').datetime.now()).strftime('%Y-%m-%d')}] — {total_rows} lignes | {len(EXPORTS_CONFIG)} fichiers",
     )
 
 with DAG(

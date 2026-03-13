@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 DB_CONFIG = {
     "host": "reclamations-postgres",
     "port": 5432,
-    "database": "airflow",
+    "database": "reclamations_db",
     "user": "airflow",
-    "password": "airflow",
+    "password": "airflow_local_dev",
 }
 
 # ─── SLA définis par type de réclamation ──────────────────────────────────────
