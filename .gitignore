@@ -53,3 +53,5 @@ data/raw/*.csv
 airflow/jars/
 airflow/docker_files/
 airflow/packages/
+CloudOracle/*.key
+CloudOracle/*.key.pub
