@@ -225,14 +225,14 @@ def compute_cross_type_kpis(**ctx):
             # Calcul des KPIs agrégés par région et type depuis la vue consolidée
             cur.execute("""
                 INSERT INTO reclamations.kpis_daily
-                    (region, type_reclamation, date_kpi,
-                     nombre_reclamations_ouvertes, nombre_reclamations_cloturees,
-                     duree_moyenne_traitement_heures, taux_respect_sla,
-                     taux_reclamations_critiques, source)
+                    (region, type_reclamation, date_calcul,
+                     nombre_ouvertes, nombre_cloturees,
+                     duree_moyenne_traitement, taux_respect_sla,
+                     nb_critiques, source)
                 SELECT
                     COALESCE(region, 'INCONNUE')                                AS region,
                     type_reclamation,
-                    %s::DATE                                                     AS date_kpi,
+                    %s::DATE                                                     AS date_calcul,
                     COUNT(*) FILTER (WHERE statut IN ('OUVERT', 'EN_COURS'))    AS nombre_ouvertes,
                     COUNT(*) FILTER (WHERE statut = 'CLOTURE')                  AS nombre_cloturees,
                     ROUND(AVG(duree_heures)::NUMERIC, 2)                        AS duree_moyenne,
@@ -250,12 +250,12 @@ def compute_cross_type_kpis(**ctx):
                 FROM reclamations.reclamations_global_consolidated
                 WHERE export_date = %s
                 GROUP BY region, type_reclamation
-                ON CONFLICT (region, type_reclamation, date_kpi) DO UPDATE SET
-                    nombre_reclamations_ouvertes       = EXCLUDED.nombre_reclamations_ouvertes,
-                    nombre_reclamations_cloturees      = EXCLUDED.nombre_reclamations_cloturees,
-                    duree_moyenne_traitement_heures    = EXCLUDED.duree_moyenne_traitement_heures,
+                ON CONFLICT (region, type_reclamation, date_calcul) DO UPDATE SET
+                    nombre_ouvertes       = EXCLUDED.nombre_ouvertes,
+                    nombre_cloturees      = EXCLUDED.nombre_cloturees,
+                    duree_moyenne_traitement    = EXCLUDED.duree_moyenne_traitement,
                     taux_respect_sla                   = EXCLUDED.taux_respect_sla,
-                    taux_reclamations_critiques        = EXCLUDED.taux_reclamations_critiques,
+                    nb_critiques        = EXCLUDED.nb_critiques,
                     source                             = EXCLUDED.source
             """, (run_date, run_date))
 

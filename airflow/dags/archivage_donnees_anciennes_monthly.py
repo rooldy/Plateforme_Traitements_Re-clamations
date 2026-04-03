@@ -35,7 +35,7 @@ RETENTION_MONTHS = 12  # Données de plus de 12 mois = éligibles à l'archivage
 TABLES_A_ARCHIVER = [
     ("reclamations.reclamations_processed",         "date_creation",  "ingestion_date"),
     ("reclamations.reclamations_cleaned",           "date_creation",  None),
-    ("reclamations.kpis_daily",                     "date_kpi",       None),
+    ("reclamations.kpis_daily",                     "date_calcul",       None),
     ("reclamations.reclamations_global_consolidated","export_date",    None),
     ("reclamations.reclamations_coupures_detail",   "export_date",    None),
     ("reclamations.reclamations_facturation_detail","export_date",    None),

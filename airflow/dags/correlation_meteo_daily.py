@@ -257,20 +257,20 @@ def compute_correlation(**ctx):
                     -- en excluant les jours avec vigilance ORANGE/ROUGE
                     SELECT
                         k.region,
-                        AVG(k.nombre_reclamations_ouvertes + k.nombre_reclamations_cloturees) AS baseline_coupures
+                        AVG(k.nombre_ouvertes + k.nombre_cloturees) AS baseline_coupures
                     FROM reclamations.kpis_daily k
                     LEFT JOIN reclamations.evenements_meteo m
-                        ON k.date_kpi = m.date_mesure AND k.region = m.region
-                    WHERE k.date_kpi BETWEEN %s::DATE - INTERVAL '30 days' AND %s::DATE - INTERVAL '1 day'
+                        ON k.date_calcul = m.date_mesure AND k.region = m.region
+                    WHERE k.date_calcul BETWEEN %s::DATE - INTERVAL '30 days' AND %s::DATE - INTERVAL '1 day'
                       AND k.type_reclamation = 'COUPURE_ELECTRIQUE'
                       AND COALESCE(m.vigilance_meteo, 'VERTE') NOT IN ('ORANGE', 'ROUGE')
                     GROUP BY k.region
                 ),
                 coupures_jour AS (
                     SELECT region,
-                           SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS nb_coupures
+                           SUM(nombre_ouvertes + nombre_cloturees) AS nb_coupures
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi = %s AND type_reclamation = 'COUPURE_ELECTRIQUE'
+                    WHERE date_calcul = %s AND type_reclamation = 'COUPURE_ELECTRIQUE'
                     GROUP BY region
                 )
                 INSERT INTO reclamations.correlation_meteo_pannes

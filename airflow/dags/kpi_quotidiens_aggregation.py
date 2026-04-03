@@ -90,8 +90,8 @@ df = spark.read.parquet(f"{base_path}/data/processed/reclamations")
 
 kpis_delais = df.filter(col("duree_traitement_heures").isNotNull()) \
     .groupBy("region", "type_reclamation").agg(
-        avg("duree_traitement_heures").alias("duree_moyenne_traitement_heures"),
-        percentile_approx("duree_traitement_heures", 0.5).alias("duree_mediane_traitement_heures"),
+        avg("duree_traitement_heures").alias("duree_moyenne_traitement"),
+        percentile_approx("duree_traitement_heures", 0.5).alias("duree_mediane_traitement"),
         avg("delai_premiere_reponse_heures").alias("delai_moyen_premiere_reponse_heures")
     ).withColumn("date_calcul", current_date())
 
@@ -139,7 +139,7 @@ kpis_sla = df.filter(col("duree_traitement_heures").isNotNull()) \
     ) \
     .withColumn("taux_respect_sla",
         (col("nb_respect_sla") / col("total_reclamations_traitees") * 100)) \
-    .withColumn("taux_reclamations_critiques",
+    .withColumn("nb_critiques",
         (col("nb_reclamations_critiques") / col("total_reclamations_traitees") * 100)) \
     .withColumn("taux_escalade",
         (col("nb_escalades") / col("total_reclamations_traitees") * 100)) \
@@ -157,7 +157,7 @@ EOF
 # ==============================================================================
 # TÂCHE 5 : Consolidation tous KPIs
 # ==============================================================================
-task_consolidate_kpis = BashOperator(
+task_consolidate_calculs = BashOperator(
     task_id='consolidate_all_kpis',
     bash_command="""
         python3 << 'EOF'
@@ -181,14 +181,14 @@ df_kpis_final = df_volumetrie.alias("v") \
     .join(df_sla.alias("s"),    ["region", "type_reclamation", "date_calcul"], "outer") \
     .select(
         "date_calcul", "region", "type_reclamation",
-        col("v.nombre_reclamations").alias("nombre_reclamations_ouvertes"),
-        col("v.nombre_cloturees").alias("nombre_reclamations_cloturees"),
+        col("v.nombre_reclamations").alias("nombre_ouvertes"),
+        col("v.nombre_cloturees").alias("nombre_cloturees"),
         col("v.nombre_ouvertes").alias("nombre_reclamations_en_cours"),
-        col("d.duree_moyenne_traitement_heures"),
-        col("d.duree_mediane_traitement_heures"),
+        col("d.duree_moyenne_traitement"),
+        col("d.duree_mediane_traitement"),
         col("d.delai_moyen_premiere_reponse_heures"),
         col("s.taux_respect_sla"),
-        col("s.taux_reclamations_critiques"),
+        col("s.nb_critiques"),
         col("s.taux_escalade")
     )
 
@@ -229,10 +229,10 @@ def export_kpis_to_postgres(**context):
 
         cols = [c for c in [
             "date_calcul", "region", "type_reclamation",
-            "nombre_reclamations_ouvertes", "nombre_reclamations_cloturees",
-            "nombre_reclamations_en_cours", "duree_moyenne_traitement_heures",
-            "duree_mediane_traitement_heures", "delai_moyen_premiere_reponse_heures",
-            "taux_respect_sla", "taux_reclamations_critiques", "taux_escalade",
+            "nombre_ouvertes", "nombre_cloturees",
+            "nombre_reclamations_en_cours", "duree_moyenne_traitement",
+            "duree_mediane_traitement", "delai_moyen_premiere_reponse_heures",
+            "taux_respect_sla", "nb_critiques", "taux_escalade",
             "date_insertion"
         ] if c in df_kpis.columns]
 
@@ -240,8 +240,8 @@ def export_kpis_to_postgres(**context):
             cur,
             f"""INSERT INTO reclamations.kpis_daily ({', '.join(cols)}) VALUES %s
                 ON CONFLICT (date_calcul, region, type_reclamation) DO UPDATE SET
-                nombre_reclamations_ouvertes  = EXCLUDED.nombre_reclamations_ouvertes,
-                nombre_reclamations_cloturees = EXCLUDED.nombre_reclamations_cloturees,
+                nombre_ouvertes  = EXCLUDED.nombre_ouvertes,
+                nombre_cloturees = EXCLUDED.nombre_cloturees,
                 nombre_reclamations_en_cours  = EXCLUDED.nombre_reclamations_en_cours,
                 taux_respect_sla              = EXCLUDED.taux_respect_sla,
                 date_insertion                = EXCLUDED.date_insertion""",
@@ -325,7 +325,7 @@ task_notification = PythonOperator(
 # DÉPENDANCES
 # ==============================================================================
 [task_kpi_volumetrie, task_kpi_delais, task_kpi_sla] >> \
-task_consolidate_kpis >> task_export_kpis >> task_notification
+task_consolidate_calculs >> task_export_kpis >> task_notification
 
 dag.doc_md = """
 # Agrégation KPIs Quotidiens

@@ -122,30 +122,30 @@ def aggregate_monthly_kpis(**ctx):
                     SELECT
                         region,
                         type_reclamation,
-                        SUM(nombre_reclamations_ouvertes)   AS total_ouvertes,
-                        SUM(nombre_reclamations_cloturees)  AS total_cloturees,
-                        SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total,
-                        AVG(duree_moyenne_traitement_heures)    AS duree_moyenne,
-                        AVG(duree_mediane_traitement_heures)    AS duree_mediane,
+                        SUM(nombre_ouvertes)   AS total_ouvertes,
+                        SUM(nombre_cloturees)  AS total_cloturees,
+                        SUM(nombre_ouvertes + nombre_cloturees) AS total,
+                        AVG(duree_moyenne_traitement)    AS duree_moyenne,
+                        AVG(duree_mediane_traitement)    AS duree_mediane,
                         AVG(taux_respect_sla)                   AS taux_sla,
-                        AVG(taux_reclamations_critiques)        AS taux_critique,
+                        AVG(nb_critiques)        AS taux_critique,
                         AVG(taux_escalade)                      AS taux_escalade
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s AND %s
+                    WHERE date_calcul BETWEEN %s AND %s
                     GROUP BY region, type_reclamation
                 ),
                 mois_prec AS (
                     SELECT region, type_reclamation,
-                           SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total
+                           SUM(nombre_ouvertes + nombre_cloturees) AS total
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s AND %s
+                    WHERE date_calcul BETWEEN %s AND %s
                     GROUP BY region, type_reclamation
                 ),
                 meme_mois_an AS (
                     SELECT region, type_reclamation,
-                           SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total
+                           SUM(nombre_ouvertes + nombre_cloturees) AS total
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s AND %s
+                    WHERE date_calcul BETWEEN %s AND %s
                     GROUP BY region, type_reclamation
                 )
                 INSERT INTO reclamations.kpis_mensuels

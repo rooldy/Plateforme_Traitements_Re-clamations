@@ -89,13 +89,13 @@ def detect_volume_anomalies(**ctx):
             cur.execute("""
                 WITH daily_counts AS (
                     SELECT
-                        date_kpi,
+                        date_calcul,
                         type_reclamation,
-                        SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total
+                        SUM(nombre_ouvertes + nombre_cloturees) AS total
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s::DATE - INTERVAL '8 days'
+                    WHERE date_calcul BETWEEN %s::DATE - INTERVAL '8 days'
                                        AND %s::DATE - INTERVAL '1 day'
-                    GROUP BY date_kpi, type_reclamation
+                    GROUP BY date_calcul, type_reclamation
                 ),
                 stats AS (
                     SELECT
@@ -108,9 +108,9 @@ def detect_volume_anomalies(**ctx):
                 today AS (
                     SELECT
                         type_reclamation,
-                        SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS total_today
+                        SUM(nombre_ouvertes + nombre_cloturees) AS total_today
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi = %s
+                    WHERE date_calcul = %s
                     GROUP BY type_reclamation
                 )
                 SELECT
@@ -282,13 +282,13 @@ def detect_geographic_anomalies(**ctx):
                 WITH regions_habituelles AS (
                     SELECT DISTINCT region
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi BETWEEN %s::DATE - INTERVAL '7 days'
+                    WHERE date_calcul BETWEEN %s::DATE - INTERVAL '7 days'
                                        AND %s::DATE - INTERVAL '1 day'
                 ),
                 regions_today AS (
                     SELECT DISTINCT region
                     FROM reclamations.kpis_daily
-                    WHERE date_kpi = %s
+                    WHERE date_calcul = %s
                 )
                 SELECT r.region
                 FROM regions_habituelles r

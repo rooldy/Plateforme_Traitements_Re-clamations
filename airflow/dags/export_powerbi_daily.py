@@ -39,17 +39,17 @@ EXPORTS_CONFIG = [
         "filename": "kpis_daily.csv",
         "query": """
             SELECT
-                date_kpi, region, type_reclamation,
-                nombre_reclamations_ouvertes,
-                nombre_reclamations_cloturees,
-                duree_moyenne_traitement_heures,
-                duree_mediane_traitement_heures,
+                date_calcul, region, type_reclamation,
+                nombre_ouvertes,
+                nombre_cloturees,
+                duree_moyenne_traitement,
+                duree_mediane_traitement,
                 taux_respect_sla,
-                taux_reclamations_critiques,
+                nb_critiques,
                 taux_escalade
             FROM reclamations.kpis_daily
-            WHERE date_kpi >= CURRENT_DATE - INTERVAL '90 days'
-            ORDER BY date_kpi DESC, region, type_reclamation
+            WHERE date_calcul >= CURRENT_DATE - INTERVAL '90 days'
+            ORDER BY date_calcul DESC, region, type_reclamation
         """,
         "description": "KPIs quotidiens — 90 derniers jours",
     },
@@ -90,17 +90,17 @@ EXPORTS_CONFIG = [
         "filename": "sla_par_region.csv",
         "query": """
             SELECT
-                date_kpi,
+                date_calcul,
                 region,
                 type_reclamation,
                 ROUND(AVG(taux_respect_sla)::NUMERIC, 2)   AS taux_sla_moyen,
-                SUM(nombre_reclamations_ouvertes
-                  + nombre_reclamations_cloturees)          AS volume_total,
-                ROUND(AVG(duree_moyenne_traitement_heures)::NUMERIC, 2) AS duree_moy
+                SUM(nombre_ouvertes
+                  + nombre_cloturees)          AS volume_total,
+                ROUND(AVG(duree_moyenne_traitement)::NUMERIC, 2) AS duree_moy
             FROM reclamations.kpis_daily
-            WHERE date_kpi >= CURRENT_DATE - INTERVAL '365 days'
-            GROUP BY date_kpi, region, type_reclamation
-            ORDER BY date_kpi DESC, region
+            WHERE date_calcul >= CURRENT_DATE - INTERVAL '365 days'
+            GROUP BY date_calcul, region, type_reclamation
+            ORDER BY date_calcul DESC, region
         """,
         "description": "Vue SLA par région — 12 derniers mois (pour Slicer Power BI)",
     },

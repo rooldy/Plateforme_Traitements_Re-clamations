@@ -45,10 +45,10 @@ MATERIALIZED_VIEWS = [
                 COUNT(*)                                                    AS total_reclamations,
                 COUNT(*) FILTER (WHERE statut IN ('OUVERT', 'EN_COURS'))    AS en_cours,
                 ROUND(AVG(taux_respect_sla)::NUMERIC, 2)                   AS taux_sla_moyen,
-                ROUND(AVG(duree_moyenne_traitement_heures)::NUMERIC, 2)    AS duree_moyenne_h,
-                MAX(date_kpi)                                               AS derniere_date
+                ROUND(AVG(duree_moyenne_traitement)::NUMERIC, 2)    AS duree_moyenne_h,
+                MAX(date_calcul)                                               AS derniere_date
             FROM reclamations.kpis_daily
-            WHERE date_kpi >= CURRENT_DATE - INTERVAL '30 days'
+            WHERE date_calcul >= CURRENT_DATE - INTERVAL '30 days'
             GROUP BY region, type_reclamation
             WITH DATA;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_sla_region_type
@@ -105,23 +105,23 @@ MATERIALIZED_VIEWS = [
         "ddl": """
             CREATE MATERIALIZED VIEW IF NOT EXISTS reclamations.mv_kpi_tendances AS
             SELECT
-                date_kpi,
+                date_calcul,
                 type_reclamation,
-                SUM(nombre_reclamations_ouvertes + nombre_reclamations_cloturees) AS volume_total,
+                SUM(nombre_ouvertes + nombre_cloturees) AS volume_total,
                 ROUND(AVG(taux_respect_sla)::NUMERIC, 2)                         AS taux_sla,
-                ROUND(AVG(duree_moyenne_traitement_heures)::NUMERIC, 2)          AS duree_moy,
+                ROUND(AVG(duree_moyenne_traitement)::NUMERIC, 2)          AS duree_moy,
                 -- Moyenne mobile 7 jours
                 ROUND(AVG(AVG(taux_respect_sla)::NUMERIC) OVER (
                     PARTITION BY type_reclamation
-                    ORDER BY date_kpi
+                    ORDER BY date_calcul
                     ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
                 ), 2) AS taux_sla_mm7j
             FROM reclamations.kpis_daily
-            WHERE date_kpi >= CURRENT_DATE - INTERVAL '90 days'
-            GROUP BY date_kpi, type_reclamation
+            WHERE date_calcul >= CURRENT_DATE - INTERVAL '90 days'
+            GROUP BY date_calcul, type_reclamation
             WITH DATA;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_tendances_date_type
-            ON reclamations.mv_kpi_tendances (date_kpi, type_reclamation);
+            ON reclamations.mv_kpi_tendances (date_calcul, type_reclamation);
         """,
         "refresh": "REFRESH MATERIALIZED VIEW CONCURRENTLY reclamations.mv_kpi_tendances",
         "fallback_refresh": "REFRESH MATERIALIZED VIEW reclamations.mv_kpi_tendances",
